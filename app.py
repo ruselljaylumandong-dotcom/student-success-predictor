@@ -3,9 +3,9 @@ import pandas as pd
 import joblib
 
 st.set_page_config(
-    page_title="Student Success Predictor",
+    page_title="Student Pass/Fail Predictor",
     page_icon="🎓",
-    layout="centered"
+    layout="centered",
 )
 
 @st.cache_resource
@@ -16,21 +16,27 @@ artifacts = load_artifacts()
 model = artifacts["model"]
 features = artifacts["features"]
 
-st.title("🎓 Student Success Predictor")
+# Mapping confirmed by the instructor for this assignment.
+# The original Machine Problem 2 dataset contains High/Low rating labels,
+# not independently recorded academic Pass/Fail outcomes.
+OUTCOME_MAPPING = {"High": "Pass", "Low": "Fail"}
+
+st.title("🎓 Student Pass/Fail Predictor")
 st.write(
     "Enter a student's Learning Management System (LMS) activity counts "
-    "to estimate their engagement category."
+    "to estimate whether the student is likely to pass or fail."
 )
 
 st.info(
-    "This version predicts **High or Low engagement**, matching the "
-    "uploaded dataset. It does not predict academic Pass or Fail."
+    "For this assignment, the instructor-approved interpretation is "
+    "**High = Pass** and **Low = Fail**. The underlying Machine Problem 2 "
+    "dataset records High/Low ratings, so the application applies this "
+    "mapping to the model's prediction."
 )
 
-st.subheader("Student LMS activity")
+st.subheader("Student information: LMS activity")
 st.caption("Enter the number of recorded actions for the period being evaluated.")
 
-# Defaults are set to typical low activity counts; users can change every value.
 defaults = {
     "Submission.Actions": 5,
     "Quiz.Actions": 1,
@@ -65,53 +71,26 @@ with st.form("prediction_form"):
                 max_value=100000,
                 value=defaults[feature],
                 step=1,
-                help="Enter a non-negative whole-number count."
+                help="Enter a non-negative whole-number count.",
             )
-    submitted = st.form_submit_button("Predict engagement", type="primary", use_container_width=True)
+    submitted = st.form_submit_button(
+        "Predict Pass or Fail", type="primary", use_container_width=True
+    )
 
 if submitted:
     input_df = pd.DataFrame([[values[f] for f in features]], columns=features)
     prediction = model.predict(input_df)[0]
     probabilities = model.predict_proba(input_df)[0]
-    predicted_label = artifacts["classes"][int(prediction)]
+    predicted_rating = str(artifacts["classes"][int(prediction)])
+    predicted_outcome = OUTCOME_MAPPING.get(predicted_rating)
     confidence = float(probabilities[int(prediction)]) * 100
 
     st.divider()
     st.subheader("Prediction result")
-    if predicted_label == "Low":
-        st.error("⚠️ Predicted category: LOW ENGAGEMENT")
+    if predicted_outcome == "Fail":
+        st.error("⚠️ Predicted outcome: FAIL")
         st.write(
-            "This result may indicate that the student needs additional "
-            "academic support or a check-in from an instructor or adviser."
+            "Based on the instructor-approved mapping, the student's "
+            "predicted rating is Low. Consider reviewing the student's "
+            "learning activity and offering appropriate academic support."
         )
-    else:
-        st.success("✅ Predicted category: HIGH ENGAGEMENT")
-        st.write(
-            "The student's activity pattern is classified as high engagement."
-        )
-
-    st.metric("Model confidence", f"{confidence:.1f}%")
-    st.caption(
-        "Confidence is the model's estimated probability for the predicted "
-        "class, not a guarantee of the student's future performance."
-    )
-
-    with st.expander("View entered activity data"):
-        st.dataframe(input_df, use_container_width=True)
-
-st.divider()
-st.subheader("About this machine learning model")
-st.write(
-    "- **Algorithm:** Extra Trees Classifier\n"
-    "- **Trees:** 250\n"
-    "- **Minimum samples to split:** 3\n"
-    "- **Train/test split:** 80% / 20%\n"
-    "- **Random state:** 42\n"
-    "- **Dataset:** 3,602 records and 8 numerical predictors"
-)
-st.warning(
-    "Use this prediction as an early-warning aid only. It should not be "
-    "the sole basis for grading, disciplinary action, or other high-impact "
-    "decisions about a student."
-)
-st.caption("Developed for a machine learning deployment activity.")
